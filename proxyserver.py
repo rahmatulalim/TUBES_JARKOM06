@@ -1,6 +1,7 @@
 import socket
 import threading
 import os
+import time  # <-- Modul ini wajib ditambahkan agar fungsi perhitungan waktu berjalan!
 
 # --- KONFIGURASI ---
 PROXY_HOST = '0.0.0.0'
@@ -27,47 +28,50 @@ def kirim_halaman_status(client_socket, status_code, status_msg):
     client_socket.sendall(header.encode() + konten)
 
 def tangani_koneksi(client_sock, addr):
+    # Catat waktu awal request masuk ke proxy
+    waktu_mulai = time.time()
+    
     try:
         request = client_sock.recv(4096).decode(errors='ignore')
         if not request: return
 
-        # Ambil nama file dari request (misal: /index.html)
         baris_pertama = request.split('\n')[0]
         url = baris_pertama.split()[1]
         
-        # Nama file untuk simpan di cache
         nama_cache = url.replace("/", "_").lstrip("_") or "index.html"
         path_cache = os.path.join(CACHE_DIR, nama_cache)
 
         # --- CEK CACHE ---
         if os.path.isfile(path_cache):
-            print(f"\033[94m[PROXY] CACHE HIT: {url} (Mengambil dari folder cache)\033[0m")
             with open(path_cache, 'rb') as f:
                 client_sock.sendall(f.read())
+            # Hitung selisih waktu respons
+            waktu_respon = (time.time() - waktu_mulai) * 1000
+            print(f"\033[94m[PROXY] CACHE HIT | Client: {addr[0]} | URL: {url} | Waktu Respons: {waktu_respon:.2f}ms\033[0m")
         else:
-            print(f"\033[93m[PROXY] CACHE MISS: {url} (Menghubungi Web Server...)\033[0m")
-            
             # Hubungkan ke Web Server
             try:
                 server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                server_sock.settimeout(5.0) # Timeout 5 detik
+                server_sock.settimeout(5.0)
                 server_sock.connect((SERVER_HOST, SERVER_PORT))
                 server_sock.sendall(request.encode())
 
-                # Terima respon dari server
                 respon_full = b""
                 while True:
                     data = server_sock.recv(4096)
                     if not data: break
                     respon_full += data
                 
-                # Simpan ke cache jika sukses (200 OK)
                 if b"200 OK" in respon_full:
                     with open(path_cache, 'wb') as f:
                         f.write(respon_full)
                 
                 client_sock.sendall(respon_full)
                 server_sock.close()
+                
+                # Hitung selisih waktu respons
+                waktu_respon = (time.time() - waktu_mulai) * 1000
+                print(f"\033[93m[PROXY] CACHE MISS | Client: {addr[0]} | URL: {url} | Waktu Respons: {waktu_respon:.2f}ms\033[0m")
 
             except socket.timeout:
                 kirim_halaman_status(client_sock, 504, "Gateway Timeout")

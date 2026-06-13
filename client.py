@@ -75,9 +75,10 @@ def mode_qos_ping():
         rtt_max = max(rtt_list)
         rtt_avg = sum(rtt_list) / len(rtt_list)
         
-        # Jitter: Variasi selisih delay antar-paket berturut-turut
+        # Jitter: Variasi selisih delay antar-paket berturut-turut sesuai rumus PDF Modul
         if len(rtt_list) > 1:
-            jitter = statistics.stdev(rtt_list)
+            selisih_rtt = [abs(rtt_list[j] - rtt_list[j-1]) for j in range(1, len(rtt_list))]
+            jitter = statistics.stdev(selisih_rtt)
         else:
             jitter = 0.0
 
@@ -85,7 +86,7 @@ def mode_qos_ping():
         throughput_kbps = (total_bytes_received * 8) / (durasi_total_detik * 1000)
 
         print("\n\033[92m=====================================")
-        print("          HASIL ANALISIS QoS         ")
+        print("         HASIL ANALISIS QoS          ")
         print("=====================================\033[0m")
         print(f"1. Paket       : Terkirim = {jumlah_ping}, Hilang = {lost}")
         print(f"   Packet Loss : {packet_loss_persen:.2f}%")

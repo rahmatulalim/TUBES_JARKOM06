@@ -1,6 +1,7 @@
 import socket
 import threading
 import os
+from datetime import datetime
 
 # Konfigurasi Alamat dan Port sesuai Modul
 HOST = '0.0.0.0' 
@@ -31,12 +32,9 @@ def send_error_response(client_socket, status_code, status_msg):
 
 def handle_tcp_client(client_socket, client_address):
     try:
-        # 1. Menerima request
         request = client_socket.recv(2048).decode(errors='ignore')
-        if not request:
-            return
+        if not request: return
 
-        # 2. Parsing HTTP GET Request
         lines = request.split('\r\n')
         if len(lines) > 0:
             first_line = lines[0].split()
@@ -44,18 +42,16 @@ def handle_tcp_client(client_socket, client_address):
                 method = first_line[0]
                 filename = first_line[1]
 
-                # Web server hanya melayani GET sesuai ketentuan
+                # Ambil waktu sekarang untuk timestamp log
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
                 if method != "GET":
                     send_error_response(client_socket, 500, "Internal Server Error")
                     return
 
-                # Arahkan root ke index.html
-                if filename == '/':
-                    filename = '/index.html'
-                
+                if filename == '/': filename = '/index.html'
                 filepath = filename.lstrip('/')
 
-                # 3. Mencoba menyajikan file aset
                 if os.path.isfile(filepath):
                     with open(filepath, 'rb') as f:
                         content = f.read()
@@ -74,7 +70,7 @@ def handle_tcp_client(client_socket, client_address):
                     else:
                         ctype = "application/octet-stream"
 
-                    # 4. Kirim HTTP Response 200 OK
+                    # 4. Kirim HTTP Response 200 OK (Indentasi sudah diperbaiki)
                     header = (
                         "HTTP/1.1 200 OK\r\n"
                         f"Content-Type: {ctype}\r\n"
@@ -82,10 +78,10 @@ def handle_tcp_client(client_socket, client_address):
                         "\r\n"
                     )
                     client_socket.sendall(header.encode() + content)
-                    print(f"\033[92m[TCP] 200 OK: {filename} served to {client_address}\033[0m")
+                    # Sesuai ketentuan: IP Proxy, Jalur berkas, Timestamp, Status Code
+                    print(f"\033[92m[TCP] {timestamp} | Status: 200 OK | File: {filename} | Proxy IP: {client_address[0]}\033[0m")
                 else:
-                    # 5. File Tidak Ditemukan -> Ambil status/404.html
-                    print(f"\033[91m[TCP] 404 Not Found: {filename}\033[0m")
+                    print(f"\033[91m[TCP] {timestamp} | Status: 404 Not Found | File: {filename} | Proxy IP: {client_address[0]}\033[0m")
                     send_error_response(client_socket, 404, "Not Found")
 
     except Exception as e:
@@ -106,9 +102,8 @@ def start_udp_server():
     while True:
         data, addr = udp_sock.recvfrom(2048)
         
-        # --- TAMBAHKAN BARIS UDP ---
+        # --- LOG UDP REQ ---
         print(f"\033[94m[UDP] Paket QoS diterima & dipantulkan ke {addr}\033[0m")
-        # -------------------------------
         
         # Pantulkan data tanpa modifikasi untuk pengukuran presisi
         udp_sock.sendto(data, addr)
